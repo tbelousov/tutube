@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: tutube-notifications
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/tutube}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiService:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+
+  retry:
+    instances:
+      aiService:
+        max-attempts: 3
+        wait-duration: 2s
+        exponential-backoff-multiplier: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+tutube:
+  ai:
+    enabled: ${AI_ENABLED:true}
+    provider: ${AI_PROVIDER:openai}
+    api-key: ${AI_API_KEY:}
+    api-url: ${AI_API_URL:https://api.openai.com/v1/chat/completions}
+    model: ${AI_MODEL:gpt-4o-mini}
+    trigger-probability: ${AI_TRIGGER_PROBABILITY:0.2}
+
+  notifications:
+    cooldown-hours: ${NOTIFICATION_COOLDOWN_HOURS:24}
+
+  throttle:
+    min-interval: 10m
+    max-per-hour: 5
+    max-per-day: 20
+    max-pending-per-user: 50
+    deduplicate-window: 24h
+
+  async:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 1000
+
+logging:
+  level:
+    root: INFO
+    com.tbelousov.tutube: ${LOG_LEVEL:DEBUG}
