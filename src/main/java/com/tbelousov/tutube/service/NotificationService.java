@@ -2,7 +2,6 @@ package com.tbelousov.tutube.service;
 
 import com.tbelousov.tutube.entity.Notification;
 import com.tbelousov.tutube.repository.NotificationRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -10,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Сервис управления очередью уведомлений.
@@ -45,7 +45,6 @@ public class NotificationService {
      * </p>
      * @param notification уведомление для постановки в очередь
      */
-    @Transactional
     public void queueNotification(Notification notification) {
         var decision = throttle.decide(
                 notification.getUserId(),
@@ -73,8 +72,8 @@ public class NotificationService {
      *
      * @return список всех уведомлений
      */
-    public List<Notification> getAll() {
-        return notificationRepo.findAll();
+    public Stream<Notification> streamAll() {
+        return notificationRepo.streamAll();
     }
 
     /**

@@ -1,17 +1,12 @@
 package com.tbelousov.tutube.entity;
 
-import jakarta.persistence.*;
 import lombok.*;
 
-@Entity
-@Table(name = "users")
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private String name;
@@ -19,11 +14,9 @@ public class User {
     @Builder.Default
     private String timezone = "UTC";
 
-    @Enumerated(EnumType.STRING)
     @Builder.Default
     private ToneProfile toneProfile = ToneProfile.KIND; // KIND, PASSIVE_AGGRESSIVE
 
-    @Enumerated(EnumType.STRING)
     @Builder.Default
     private NotificationMode mode = NotificationMode.HYBRID; // RULES_ONLY, AI_ONLY, HYBRID
 

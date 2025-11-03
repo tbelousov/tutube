@@ -3,39 +3,21 @@ package com.tbelousov.tutube.service;
 import com.tbelousov.tutube.entity.User;
 import com.tbelousov.tutube.entity.UserAction;
 import com.tbelousov.tutube.repository.*;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @SpringBootTest
-@Testcontainers
 class ActionServiceIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17.5")
-            .withDatabaseName("tutube_test")
-            .withUsername("test")
-            .withPassword("test");
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("tutube.ai.enabled", () -> "false"); // отключаем AI в тестах
-    }
 
     @Autowired
     private ActionService actionService;
@@ -44,7 +26,15 @@ class ActionServiceIntegrationTest {
     private UserRepository userRepo;
 
     @Autowired
+    private List<ClearableRepository> repos;
+
+    @Autowired
     private NotificationRepository notificationRepo;
+
+    @BeforeEach
+    void setUp() {
+        repos.forEach(ClearableRepository::clear);
+    }
 
     @Test
     void weatherBasedRule_shouldTriggerOnRainyWeather() {
@@ -72,7 +62,7 @@ class ActionServiceIntegrationTest {
         actionService.registerAction(action);
 
         // Then
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
                     var notifications = notificationRepo.findByUserId(user.getId());
                     assertThat(notifications).isNotEmpty();
@@ -111,7 +101,7 @@ class ActionServiceIntegrationTest {
         }
 
         // Then
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
                     var notifications = notificationRepo.findByUserId(user.getId());
                     assertThat(notifications).anyMatch(n -> n.getTriggerType().equals("NIGHT_OWL"));

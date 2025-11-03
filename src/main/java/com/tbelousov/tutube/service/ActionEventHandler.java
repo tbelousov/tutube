@@ -16,8 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.context.event.EventListener;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -62,7 +61,7 @@ public class ActionEventHandler {
      * @throws UserActionNotFoundException если действие не найдено
      */
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void onActionSaved(ActionService.ActionSavedEvent event) {
         var user = userRepo.findById(event.userId())
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + event.userId()));

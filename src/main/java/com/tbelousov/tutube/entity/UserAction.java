@@ -1,7 +1,6 @@
 package com.tbelousov.tutube.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -9,32 +8,19 @@ import lombok.*;
 
 import java.time.Instant;
 
-@Entity
-@Table(name = "actions", indexes = {
-        @Index(name = "idx_user_timestamp", columnList = "userId,timestamp"),
-        @Index(name = "idx_user_action_type", columnList = "userId,actionType"),
-        @Index(name = "idx_channel_timestamp", columnList = "channelId,timestamp"),
-        @Index(name = "idx_video_timestamp", columnList = "videoId,timestamp")
-})
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserAction {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private ActionType actionType;
 
     private Instant timestamp;
 
-    @Enumerated(EnumType.STRING)
     private DeviceType deviceType;
 
     private String location; // город или координаты

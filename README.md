@@ -1,11 +1,13 @@
-# 📺 Tutube — Сервис непредсказуемых уведомлений
+# 📺 Tutube v1.1 — Сервис непредсказуемых уведомлений
 
 Видеоплатформа с интеллектуальной системой уведомлений, которая анализирует поведение пользователей и отправляет персонализированные сообщения. Разработано как тестовое задание (и по ТЗ) **AlumniHub**.
 
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.5-blue.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
+
+Хранилище данных: полностью in-memory (без БД). Все репозитории реализованы на ConcurrentHashMap.
+Данные очищаются при рестарте приложения.
 
 ---
 
@@ -92,7 +94,7 @@
 │  ► Сохраняет действие               │
 │  ► Публикует ActionSavedEvent       │
 └──────────────────┬──────────────────┘
-                   │ @TransactionalEventListener
+                   │ @EventListener
                    ▼
 ┌─────────────────────────────────────┐
 │         ActionEventHandler          │
@@ -116,7 +118,7 @@
         │  ► Сохраняет         │
         │  ► Публикует Event   │
         └──────────┬───────────┘
-                   │ @TransactionalEventListener
+                   │ @EventListener
                    ▼
      ┌─────────────────────────────┐
      │ SmartNotificationDispatcher │
@@ -131,7 +133,7 @@
 
 ### Предварительные требования
 - Java 17+
-- Docker & Docker Compose
+- (Опционально) Docker
 - (Опционально) OpenAI API key для AI-режима
 
 ### 1. Клонирование
@@ -143,20 +145,17 @@ cd tutube
 ### 2. Настройка окружения
 Создайте `.env` файл:
 ```bash
-DATABASE_URL=jdbc:postgresql://localhost:5432/tutube
-DATABASE_USERNAME=postgres
-DATABASE_PASSWORD=postgres
-
 # Опционально для AI
 AI_ENABLED=true
 AI_API_KEY=sk-proj-YOUR_KEY_HERE
 AI_MODEL=gpt-4o-mini
 AI_TRIGGER_PROBABILITY=0.2
 
+# Логи
 LOG_LEVEL=INFO
 ```
 
-### 3. Запуск через Docker Compose
+### 3. Запуск (Docker)
 ```bash
 docker-compose up -d
 ```
@@ -165,10 +164,6 @@ docker-compose up -d
 
 ### 4. Локальный запуск (без Docker)
 ```bash
-# Поднять PostgreSQL
-docker-compose up -d postgres
-
-# Запустить приложение
 ./gradlew bootRun
 ```
 
@@ -241,8 +236,6 @@ curl http://localhost:8080/notifications
 ./gradlew test
 ```
 
-Используется **Testcontainers** для интеграционных тестов с реальной PostgreSQL.
-
 ---
 
 ## 📊 Мониторинг
@@ -300,10 +293,10 @@ src/main/java/com/tbelousov/tutube/
 ├── config/              # Конфигурация (Async, Security, Properties)
 ├── controller/          # REST endpoints
 ├── dto/                 # Data Transfer Objects + валидация
-├── entity/              # JPA сущности (User, UserAction, Notification)
+├── entity/              # POJO (User, UserAction, Notification)
 ├── exception/           # Custom exceptions
 ├── mapper/              # Entity ↔ DTO
-├── repository/          # Spring Data JPA
+├── repository/          # In-memory (ConcurrentHashMap)
 └── service/
     ├── ai/              # AI-генерация уведомлений
     ├── rules/           # 26 эвристических правил
@@ -330,6 +323,5 @@ src/main/java/com/tbelousov/tutube/
 
 ## 🚧 Известные ограничения
 
-1. **Восстановление после рестарта** - `restoreScheduledNotifications()` работает in-memory. В проде нужна персистентная очередь (RabbitMQ, Kafka).
-2. **AI fallback** - если OpenAI недоступен, отправляется generic-сообщение.
-3. **Отправка уведомлений** - сейчас только логирование.
+1. **AI fallback** - если OpenAI недоступен, отправляется generic-сообщение.
+2. **Отправка уведомлений** - сейчас только логирование.

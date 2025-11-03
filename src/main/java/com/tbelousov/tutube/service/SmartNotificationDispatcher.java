@@ -8,16 +8,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.event.EventListener;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.concurrent.*;
 
 /**
@@ -36,7 +32,11 @@ import java.util.concurrent.*;
 public class SmartNotificationDispatcher {
     private final NotificationRepository notificationRepo;
 
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, r -> {
+            var t = new Thread(r, "notif-scheduler-");
+            t.setDaemon(true);
+            return t;
+    });
 
     private final Cache<Long, ScheduledFuture<?>> scheduledTasks = Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofDays(7)) // автоматическая очистка
@@ -57,7 +57,7 @@ public class SmartNotificationDispatcher {
      * @param event событие с ID уведомления
      */
     @Async("notificationTaskExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void onNotificationQueued(NotificationService.NotificationQueuedEvent event) {
         var notification = notificationRepo.findById(event.notificationId()).orElse(null);
 
@@ -74,25 +74,23 @@ public class SmartNotificationDispatcher {
      * @param notification уведомление для планирования
      */
     public void scheduleNotification(Notification notification) {
-        long delaySeconds = notification.getSendAt().getEpochSecond() - Instant.now().getEpochSecond();
+        long delayMs = Math.max(0, Duration.between(Instant.now(), notification.getSendAt()).toMillis()); // если 0, отправить немедленно
 
-        if (delaySeconds < 0) {
-            delaySeconds = 0; // отправить немедленно
-        }
-
-        log.debug("Scheduling notification {} for user {} in {} seconds",
-                notification.getId(), notification.getUserId(), delaySeconds);
+        log.debug("Scheduling notification {} for user {} in {} ms",
+                notification.getId(), notification.getUserId(), delayMs);
 
         ScheduledFuture<?> task = scheduler.schedule(
                 () -> sendNotification(notification.getId()),
-                delaySeconds,
-                TimeUnit.SECONDS
+                delayMs,
+                TimeUnit.MILLISECONDS
         );
 
-        var old = scheduledTasks.asMap().put(notification.getId(), task);
-        if (old != null && !old.isDone()) {
-            old.cancel(false);
-        }
+        scheduledTasks.asMap().compute(notification.getId(), (id, oldTask) -> {
+            if (oldTask != null && !oldTask.isDone()) {
+                oldTask.cancel(false);
+            }
+            return task;
+        });
     }
 
     /**
@@ -100,7 +98,6 @@ public class SmartNotificationDispatcher {
      *
      * @param notificationId ID уведомления
      */
-    @Transactional
     protected void sendNotification(Long notificationId) {
         try {
             int updated = notificationRepo.markSentIfDue(notificationId, Instant.now());
@@ -115,37 +112,6 @@ public class SmartNotificationDispatcher {
         } catch (Exception e) {
             log.error("Error sending notification {}: {}", notificationId, e.getMessage(), e);
             scheduledTasks.invalidate(notificationId);
-        }
-    }
-
-    /**
-     * Восстанавливает запланированные уведомления при старте приложения.
-     * Просроченные уведомления отправляются немедленно, остальные перепланируются.
-     * В реальном проекте надо заменить на что-то более надёжное.
-     */
-    @PostConstruct
-    public void restoreScheduledNotifications() {
-        log.info("Restoring scheduled notifications...");
-        try {
-            List<Notification> pending = notificationRepo.findBySentFalse();
-
-            int restored = 0;
-            int immediate = 0;
-
-            for (var n : pending) {
-                if (n.getSendAt().isAfter(Instant.now())) {
-                    scheduleNotification(n);
-                    restored++;
-                } else {
-                    // Просроченные отправляем сразу
-                    sendNotification(n.getId());
-                    immediate++;
-                }
-            }
-
-            log.info("Restored {} pending notifications ({} scheduled, {} sent immediately)", pending.size(), restored, immediate);
-        } catch (Exception e) {
-            log.error("Error restoring scheduled notifications: {}", e.getMessage(), e);
         }
     }
 

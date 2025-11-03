@@ -19,7 +19,7 @@ public class UserController {
 
     @GetMapping
     public List<UserDto> getAllUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.streamAll()
                 .map(userMapper::toDto)
                 .toList();
     }

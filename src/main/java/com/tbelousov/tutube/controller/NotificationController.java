@@ -1,22 +1,16 @@
 package com.tbelousov.tutube.controller;
 
 import com.tbelousov.tutube.dto.NotificationDto;
-import com.tbelousov.tutube.entity.Notification;
 import com.tbelousov.tutube.mapper.NotificationMapper;
 import com.tbelousov.tutube.service.NotificationService;
 import com.tbelousov.tutube.service.SmartNotificationDispatcher;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.query.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
-import static org.springframework.data.domain.Sort.Direction.DESC;
 
 /**
  * REST API для получения уведомлений.
@@ -40,7 +34,7 @@ public class NotificationController {
      */
     @GetMapping
     public List<NotificationDto> getAll() {
-        return notificationService.getAll().stream().map(notificationMapper::toDto).toList();
+        return notificationService.streamAll().map(notificationMapper::toDto).toList();
     }
 
     /**

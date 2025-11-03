@@ -1,40 +1,134 @@
 package com.tbelousov.tutube.repository;
 
 import com.tbelousov.tutube.entity.Notification;
-import org.hibernate.query.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.PagingAndSortingRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    List<Notification> findByUserId(Long userId);
-    List<Notification> findBySentFalse();
-    List<Notification> findByUserIdAndCreatedAtAfter(Long userId, Instant after);
+@Repository
+@Slf4j
+public class NotificationRepository implements ClearableRepository {
 
-    @Query("SELECT max(n.sendAt) FROM Notification n " +
-            "WHERE n.userId = :userId AND n.sent = true")
-    Instant findLastDeliveryTime(Long userId);
+    private final Map<Long, Notification> storage = new ConcurrentHashMap<>();
+    private final AtomicLong idGenerator = new AtomicLong(1);
 
-    @Query("SELECT count(n) FROM Notification n " +
-            "WHERE n.userId = :userId AND n.sent = true AND n.createdAt >= :since")
-    long countSentSince(Long userId, Instant since);
+    public Notification save(Notification notification) {
+        var id = notification.getId();
+        if (id == null) id = idGenerator.getAndIncrement();
 
-    @Query("SELECT count(n) FROM Notification n " +
-            "WHERE n.userId = :userId AND n.sent = false")
-    int countPendingByUser(Long userId);
+        final var finalId = id;
+        return storage.compute(finalId, (k, v) ->
+                Notification.builder()
+                        .id(finalId)
+                        .userId(notification.getUserId())
+                        .message(notification.getMessage())
+                        .createdAt(notification.getCreatedAt())
+                        .sendAt(notification.getSendAt())
+                        .sent(notification.isSent())
+                        .triggerType(notification.getTriggerType())
+                        .tone(notification.getTone())
+                        .source(notification.getSource())
+                        .context(notification.getContext())
+                        .build()
+        );
+    }
 
-    @Query("SELECT count(n) > 0 FROM Notification n " +
-            "WHERE n.userId = :userId AND n.triggerType = :triggerType AND n.createdAt >= :since")
-    boolean existsTriggerSince(Long userId, String triggerType, Instant since);
+    public Optional<Notification> findById(Long id) {
+        return Optional.ofNullable(storage.get(id));
+    }
 
-    @Modifying
-    @Query("UPDATE Notification n " +
-           "SET n.sent = true " +
-           "WHERE n.id = :id AND n.sent = false AND n.sendAt <= :now")
-    int markSentIfDue(Long id, Instant now);
+    public Stream<Notification> streamAll() {
+        return storage.values().stream();
+    }
+
+    public List<Notification> findByUserId(Long userId) {
+        return storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .toList();
+    }
+
+    public List<Notification> findByUserIdAndCreatedAtAfter(Long userId, Instant after) {
+        return storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .filter(n -> n.getCreatedAt().isAfter(after))
+                .toList();
+    }
+
+    public Instant findLastDeliveryTime(Long userId) {
+        return storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .filter(Notification::isSent)
+                .map(Notification::getSendAt)
+                .max(Instant::compareTo)
+                .orElse(null);
+    }
+
+    public long countSentSince(Long userId, Instant since) {
+        return storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .filter(Notification::isSent)
+                .filter(n -> n.getCreatedAt().isAfter(since) || n.getCreatedAt().equals(since))
+                .count();
+    }
+
+    public int countPendingByUser(Long userId) {
+        return (int) storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .filter(n -> !n.isSent())
+                .count();
+    }
+
+    public boolean existsTriggerSince(Long userId, String triggerType, Instant since) {
+        return storage.values().stream()
+                .filter(n -> n.getUserId().equals(userId))
+                .filter(n -> triggerType.equals(n.getTriggerType()))
+                .anyMatch(n -> n.getCreatedAt().isAfter(since) || n.getCreatedAt().equals(since));
+    }
+
+    /**
+     * Аналог @Modifying query - обновляет запись если условия выполнены
+     * Возвращает 1 если обновлено, 0 - если нет
+     */
+    public int markSentIfDue(Long id, Instant now) {
+        var result = new AtomicInteger(0);
+        storage.compute(id, (k, n) -> {
+            if (n == null || n.isSent()) return n; // уже отправлено
+            if (n.getSendAt() != null && n.getSendAt().isAfter(now)) return n; // ещё не время
+
+            result.set(1);
+            return Notification.builder()
+                    .id(n.getId())
+                    .userId(n.getUserId())
+                    .message(n.getMessage())
+                    .createdAt(n.getCreatedAt())
+                    .sendAt(n.getSendAt() != null ? n.getSendAt() : now)
+                    .sent(true) // <= тутъ новое значение
+                    .triggerType(n.getTriggerType())
+                    .tone(n.getTone())
+                    .source(n.getSource())
+                    .context(n.getContext())
+                    .build();
+        });
+        return result.get();
+    }
+
+    public void deleteById(Long id) {
+        storage.remove(id);
+    }
+
+    @Override
+    public void clear() {
+        storage.clear();
+        idGenerator.set(1);
+    }
+
+    public long count() {
+        return storage.size();
+    }
 }

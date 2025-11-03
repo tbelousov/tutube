@@ -4,7 +4,6 @@ import com.tbelousov.tutube.entity.UserAction;
 import com.tbelousov.tutube.exception.UserNotFoundException;
 import com.tbelousov.tutube.repository.UserActionRepository;
 import com.tbelousov.tutube.repository.UserRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,7 +45,6 @@ public class ActionService {
      * @return ID сохранённого действия
      * @throws UserNotFoundException если пользователь не найден
      */
-    @Transactional
     public Long registerAction(UserAction action) {
         var user = userRepo.findById(action.getUserId())
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + action.getUserId()));

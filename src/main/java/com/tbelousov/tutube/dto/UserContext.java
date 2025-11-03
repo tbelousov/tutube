@@ -17,9 +17,11 @@ public class UserContext {
     public String toPromptString() {
         var sb = new StringBuilder();
         sb.append("ID юзера: ").append(userId).append("\n");
-        sb.append("Шаблоны поведения:\n");
-        behaviorPatterns.forEach((k, v) ->
-                sb.append("- ").append(k).append(": ").append(v).append("\n"));
+        if (behaviorPatterns != null) {
+            sb.append("Шаблоны поведения:\n");
+            behaviorPatterns.forEach((k, v) ->
+                    sb.append("- ").append(k).append(": ").append(v).append("\n"));
+        }
         if (currentLocation != null) {
             sb.append("Локация: ").append(currentLocation).append("\n");
         }
