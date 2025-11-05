@@ -94,7 +94,7 @@
 │  ► Сохраняет действие               │
 │  ► Публикует ActionSavedEvent       │
 └──────────────────┬──────────────────┘
-                   │ @EventListener
+                   │ eventBus.publish()
                    ▼
 ┌─────────────────────────────────────┐
 │         ActionEventHandler          │
@@ -118,7 +118,7 @@
         │  ► Сохраняет         │
         │  ► Публикует Event   │
         └──────────┬───────────┘
-                   │ @EventListener
+                   │ eventBus.publish()
                    ▼
      ┌─────────────────────────────┐
      │ SmartNotificationDispatcher │
@@ -290,10 +290,11 @@ tutube:
 
 ```
 src/main/java/com/tbelousov/tutube/
-├── config/              # Конфигурация (Async, Security, Properties)
+├── config/              # Конфигурация (Eventing, Security, Properties)
 ├── controller/          # REST endpoints
 ├── dto/                 # Data Transfer Objects + валидация
 ├── entity/              # POJO (User, UserAction, Notification)
+├── event/               # Custom Event Bus (взамен стандартной из Spring)
 ├── exception/           # Custom exceptions
 ├── mapper/              # Entity ↔ DTO
 ├── repository/          # In-memory (ConcurrentHashMap)
