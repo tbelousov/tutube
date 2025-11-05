@@ -1,10 +1,11 @@
 package com.tbelousov.tutube.service;
 
 import com.tbelousov.tutube.entity.Notification;
+import com.tbelousov.tutube.event.NotificationQueuedEvent;
+import com.tbelousov.tutube.event.SimpleEventBus;
 import com.tbelousov.tutube.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -27,16 +28,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepo;
     private final NotificationThrottleService throttle;
     private final MetricsService metrics;
-    private final ApplicationEventPublisher events;
-
-    /**
-     * Событие о постановке уведомления в очередь.
-     * <p>
-     * Обрабатывается {@link SmartNotificationDispatcher} для планирования отправки.
-     * </p>
-     * @param notificationId ID созданного уведомления
-     */
-    public record NotificationQueuedEvent(Long notificationId) {}
+    private final SimpleEventBus eventBus;
 
     /**
      * Ставит уведомление в очередь после проверки throttling-правил.
@@ -62,7 +54,7 @@ public class NotificationService {
 
         metrics.recordNotificationCreated(notification.getSource(), notification.getTriggerType());
 
-        events.publishEvent(new NotificationQueuedEvent(saved.getId()));
+        eventBus.publish(new NotificationQueuedEvent(saved.getId()));
 
         log.info("Queued notification {} for user {} at {}", saved.getId(), saved.getUserId(), saved.getSendAt());
     }

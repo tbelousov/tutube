@@ -3,12 +3,14 @@ package com.tbelousov.tutube.service;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.tbelousov.tutube.entity.Notification;
+import com.tbelousov.tutube.event.EventHandler;
+import com.tbelousov.tutube.event.NotificationQueuedEvent;
+import com.tbelousov.tutube.event.SimpleEventBus;
 import com.tbelousov.tutube.repository.NotificationRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.context.event.EventListener;
 
 import jakarta.annotation.PreDestroy;
 
@@ -17,7 +19,7 @@ import java.time.Instant;
 import java.util.concurrent.*;
 
 /**
- * Умный диспетчер уведомлений.
+ * Умный диспетчер уведомлений. Слушает {@link NotificationQueuedEvent}.
  * <p>
  * Работает по принципу: при создании уведомления сразу планируется индивидуальная задача
  * на момент {@code sendAt} через {@link ScheduledExecutorService}.
@@ -29,8 +31,9 @@ import java.util.concurrent.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class SmartNotificationDispatcher {
+public class SmartNotificationDispatcher implements EventHandler<NotificationQueuedEvent> {
     private final NotificationRepository notificationRepo;
+    private final SimpleEventBus eventBus;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, r -> {
             var t = new Thread(r, "notif-scheduler-");
@@ -49,6 +52,16 @@ public class SmartNotificationDispatcher {
             })
             .build();
 
+    @PostConstruct
+    void init() {
+        eventBus.subscribe(this);
+    }
+
+    @Override
+    public Class<NotificationQueuedEvent> eventType() {
+        return NotificationQueuedEvent.class;
+    }
+
     /**
      * Обрабатывает событие постановки уведомления в очередь.
      * <p>
@@ -56,9 +69,8 @@ public class SmartNotificationDispatcher {
      * </p>
      * @param event событие с ID уведомления
      */
-    @Async("notificationTaskExecutor")
-    @EventListener
-    public void onNotificationQueued(NotificationService.NotificationQueuedEvent event) {
+    @Override
+    public void handle(NotificationQueuedEvent event) {
         var notification = notificationRepo.findById(event.notificationId()).orElse(null);
 
         if (notification != null && !notification.isSent()) {
